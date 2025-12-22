@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+langchain-ollama
+langchain-community
+langchain-text-splitters
+pypdf
+faiss-cpu
+sqlalchemy
+psycopg2-binary
+passlib[bcrypt]
+python-jose[cryptography]

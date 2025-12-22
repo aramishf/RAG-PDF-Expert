@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-playfair);
+
+  /* AF Brand Palette */
+  --color-cream: #EBF4DD;
+  /* Organic Canvas */
+  --color-charcoal: #3B4953;
+  /* Deep Slate/Charcoal */
+  --color-sage: #90AB8B;
+  /* Muted Sage */
+  --color-forest: #3B4953;
+  /* Mapping forest to the primary dark for reuse, or keep separate? User asked for logo colors. Let's sync forest to charcoal for text consistency if needed, but safe to keep sage separate */
+
+  --animate-cursor-grow: cursor-grow 0.3s forwards;
+  --animate-ripple: ripple 0.6s linear forwards;
+}
+
+:root {
+  --background: #000000;
+  /* Pure Black */
+  --foreground: #F2F5E9;
+  /* Light Cream Text for Contrast */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Keeping the requested palette even in dark mode for brand consistency, 
+       or inverting only the background to charcoal. 
+       User asked for "Site-wide background to #EBF4DD", implying light mode default. */
+    --background: #2A2A2A;
+    --foreground: #EBF4DD;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  @apply antialiased overflow-hidden h-screen w-screen cursor-none;
+}
+
+/* Glassmorphism */
+@utility glass {
+  background: rgba(235, 244, 221, 0.4);
+  /* Creamy glass */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(42, 42, 42, 0.05);
+  /* Subtle charcoal border */
+}
+
+.dark .glass {
+  background: rgba(42, 42, 42, 0.6);
+  border: 1px solid rgba(235, 244, 221, 0.1);
+}
+
+/* Animations */
+@keyframes cursor-grow {
+  0% {
+    transform: scale(1);
+  }
+
+  100% {
+    transform: scale(3);
+    opacity: 0.5;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-forest);
+  /* Forest Green scrollbar */
+  border-radius: 20px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+/* Instant tooltip - removes browser default delay */
+[title]:hover::before {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #000;
+  color: #fff;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  z-index: 9999;
+  pointer-events: none;
+}
