@@ -184,7 +184,7 @@ def process_new_files(file_paths: List[str]):
     return {"status": "success", "message": f"Added {len(file_paths)} files ({len(chunks)} chunks) to the index."}
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+async def chat(request: ChatRequest):
     print("--- ENTERING CHAT ENDPOINT ---")
     try:
         if state["vector_db"] is None:
@@ -193,70 +193,80 @@ def chat(request: ChatRequest):
         vector_db = state["vector_db"]
         llm = ChatOllama(model="mistral", base_url=OLLAMA_BASE_URL)
 
-        # 1. Retrieve - Increased to 40 chunks for comprehensive evidence gathering
+        # 1. Retrieve - Improved k=25
+        import time
+        t0 = time.time()
         print("Retrieving docs...")
-        docs_and_scores = vector_db.similarity_search_with_score(request.question, k=40)
+        docs_and_scores = vector_db.similarity_search_with_score(request.question, k=25)
         docs_and_scores.sort(key=lambda x: x[1])
         source_docs = [doc for doc, score in docs_and_scores]
-
+        print(f"Retrieval took: {time.time() - t0:.2f}s")
+        
         # 2. Context - Format as numbered source passages
         context_parts = []
         for idx, d in enumerate(source_docs, 1):
             src = d.metadata.get("source", "Unknown")
             pg = d.metadata.get("page", 0) + 1
-            context_parts.append(f"Passage {idx} [{src}, p.{pg}]:\n{d.page_content}")
+            context_parts.append(f"[{src}, p.{pg}]:\n{d.page_content}")
         context = "\n\n---\n\n".join(context_parts)
         
         # Debug: Log what we're sending to the AI
         print(f"Retrieved {len(source_docs)} passages")
         print(f"Context length: {len(context)} characters")
         print(f"First passage preview: {context[:500]}...")
-        sys.stdout.flush()
+        # sys.stdout.flush() - Removed to prevent potential NameError
 
-        # 3. Prompt - Advanced research assistant with reasoning
-        prompt = f"""You are an expert research assistant analyzing religious and historical texts.
+        # 3. Prompt - 4-Step Deep Analysis
+        prompt = f"""You are an expert research assistant.
 
-Your task: Answer the user's question using intelligent reasoning based on the passages below.
+QUERY: {request.question}
 
-FIRST: Check if the passages are relevant to the question. If they don't contain information about the question, say so clearly and stop.
-
-ANSWER STRUCTURE (only if passages are relevant):
-
-1. **Direct Answer**: Start with a clear, direct response to the question.
-
-2. **Evidence & Analysis**: 
-   - Quote relevant passages: "exact text" [Source, p.XX]
-   - Explain what the quotes mean in your own words
-   - Connect multiple pieces of evidence logically
-   - Note any patterns, themes, or relationships
-
-3. **Synthesis**:
-   - Provide a comprehensive answer that combines evidence with reasoning
-   - Paraphrase concepts while citing sources
-   - If evidence conflicts, acknowledge both perspectives
-   - If gaps exist, state what's missing
-
-CRITICAL RULES:
-✓ If passages don't answer the question, say: "The provided texts do not contain information about [topic]. Would you like me to provide general knowledge about this topic instead?"
-✓ DO NOT summarize irrelevant passages
-✓ Ground all claims in the provided passages with citations
-✓ Use reasoning to connect ideas, but cite your evidence
-✓ Paraphrase is encouraged, but always cite the source
-✓ If you must use external knowledge, clearly state: "⚠️ Note: The following is based on general knowledge, not the provided texts: [your answer]. This may not reflect the specific perspective of these documents."
-
-Question: {request.question}
-
-Passages:
+SOURCE MATERIAL:
 {context}
 
-Your answer:""".strip()
+INSTRUCTIONS:
+Analyze the source material and provide a structured response following these 4 STEPS exactly.
+
+STEP 1 - EVIDENCE EXTRACTION
+- List textual evidence directly relevant to the query.
+- Format: "Verbatim quote..." [Source, p.XX]
+- Classify claims if possible (Historical, Theological, etc.)
+
+STEP 2 - ANALYSIS
+- Analyze the extracted evidence.
+- Explain the key arguments or narratives presented in the text.
+- Connect the evidence to logical conclusions.
+- "The text presents a perspective that..."
+
+STEP 3 - GAP IDENTIFICATION
+- Identify what is missing from the provided text to fully answer the query.
+- Identify any assumptions the text makes (e.g. reader knowledge).
+- "The text does not explain..."
+
+STEP 4 - SYNTHESIS
+- Synthesize a comprehensive final answer based on the analysis.
+- Connect the claims to the final conclusion.
+- Ensure the tone is objective and analytical.
+
+CRITICAL CITATION RULES:
+- ALWAYS use [Source, p.XX] format immediately after quotes.
+- NO "References" list at the end.
+- ALL claims must be grounded in the text.
+
+    """.strip()
 
         # 4. Infer
         print("Invoking LLM (Sync)...")
-        # Direct sync invoke - FastAPI runs `def` endpoints in a threadpool
-        response = llm.invoke(prompt)
-        print("LLM Finished.")
-        answer_text = response.content
+        t1 = time.time()
+        from fastapi.concurrency import run_in_threadpool
+        try:
+            # Use run_in_threadpool for sync functions called from async
+            response = await run_in_threadpool(llm.invoke, prompt)
+            print(f"LLM Generation took: {time.time() - t1:.2f}s")
+            answer_text = response.content
+        except Exception as e:
+            print(f"Error invoking LLM: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
         # 5. Format Citations - Only include sources actually cited in the response
         citations = []

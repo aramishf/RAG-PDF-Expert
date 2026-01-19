@@ -38,11 +38,12 @@ export async function uploadFiles(files: File[]) {
     return data;
 }
 
-export async function sendChat(question: string): Promise<{ answer: string; citations: Citation[] }> {
+export async function sendChat(question: string, signal?: AbortSignal): Promise<{ answer: string; citations: Citation[] }> {
     const res = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
+        signal,
     });
 
     if (!res.ok) {
