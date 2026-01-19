@@ -231,15 +231,21 @@ export default function ChatInterface() {
 
                                                     {msg.citations && msg.citations.length > 0 && (
                                                         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/10 not-prose">
-                                                            {msg.citations.map((cite, i) => {
-                                                                const bookName = cite.source?.replace('.pdf', '') || 'Unknown';
-                                                                const abbreviation = bookName.split('-').map(w => w[0]?.toUpperCase()).join('');
-                                                                return (
-                                                                    <span key={i} className="text-xs bg-white/10 text-[#D4AF37] px-2 py-1 rounded cursor-help" title={`${cite.source} (p.${cite.page})`}>
-                                                                        [{abbreviation} p.{cite.page}]
-                                                                    </span>
-                                                                );
-                                                            })}
+                                                            {msg.citations
+                                                                .filter((cite, index, self) =>
+                                                                    index === self.findIndex((t) => (
+                                                                        t.source === cite.source && t.page === cite.page
+                                                                    ))
+                                                                )
+                                                                .map((cite, i) => {
+                                                                    const bookName = cite.source?.replace('.pdf', '') || 'Unknown';
+                                                                    const abbreviation = bookName.split('-').map(w => w[0]?.toUpperCase()).join('');
+                                                                    return (
+                                                                        <span key={i} className="text-xs bg-white/10 text-[#D4AF37] px-2 py-1 rounded cursor-help" title={`${cite.source} (p.${cite.page})`}>
+                                                                            [{abbreviation} p.{cite.page}]
+                                                                        </span>
+                                                                    );
+                                                                })}
                                                         </div>
                                                     )}
                                                 </div>
