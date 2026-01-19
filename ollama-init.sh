@@ -29,6 +29,15 @@ else
     echo "✅ Mistral model already present"
 fi
 
+# Check if embedding model is already downloaded
+if ! ollama list | grep -q "nomic-embed-text"; then
+    echo "📥 Downloading nomic-embed-text model..."
+    ollama pull nomic-embed-text
+    echo "✅ Embedding model downloaded successfully!"
+else
+    echo "✅ Embedding model already present"
+fi
+
 # Keep the container running
 echo "🎉 Ollama is ready!"
 wait
