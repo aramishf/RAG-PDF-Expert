@@ -138,8 +138,12 @@ export default function ChatInterface() {
                         className="h-full flex flex-col items-center justify-center text-center space-y-8 -mt-20"
                     >
                         <div className="relative">
-                            <div className="absolute inset-0 bg-white/5 blur-3xl opacity-20 rounded-full" />
-                            <LogoAF className="w-32 h-32 relative z-10 drop-shadow-2xl" />
+                            <div className="absolute inset-0 bg-transparent" />
+                            <img
+                                src="/ai_avatar.png"
+                                alt="AI Assistant"
+                                className="w-40 h-40 relative z-10 drop-shadow-2xl object-cover rounded-2xl"
+                            />
                         </div>
 
                         <h2 className="text-xl md:text-2xl font-light text-white/90 tracking-wide max-w-xl">
@@ -159,8 +163,8 @@ export default function ChatInterface() {
                         {/* Input Bar Centered Here when Empty */}
                         <div className="w-full max-w-2xl mt-8">
                             {/* Input Container: Dark Green/Grey Background */}
-                            {/* Input Container: Grey Background */}
-                            <div className="bg-[#404040] rounded-3xl p-2 pl-6 flex items-end gap-4 shadow-2xl shadow-black/20 border border-white/5 ring-1 ring-white/10 focus-within:ring-white/30 transition-all duration-300">
+                            {/* Input Container: Gold Gradient Bar */}
+                            <div className="bg-gradient-to-r from-[#e3c788] via-[#d4af37] to-[#aa8c2c] rounded-3xl p-2 pl-6 flex items-end gap-4 shadow-2xl shadow-[#D4AF37]/20 border border-[#F3E5AB]/40 ring-1 ring-[#D4AF37]/20 focus-within:ring-[#F3E5AB]/50 transition-all duration-300">
 
                                 <input
                                     type="file"
@@ -172,7 +176,7 @@ export default function ChatInterface() {
                                 />
 
                                 <textarea
-                                    className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-40 min-h-[48px] py-3 text-base text-white placeholder:text-white/50 font-medium focus:outline-none"
+                                    className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-40 min-h-[48px] py-3 text-base text-[#1A1A1A] placeholder-[#1A1A1A]/60 font-medium focus:outline-none"
                                     placeholder="Ask anything"
                                     rows={1}
                                     value={input}
@@ -201,7 +205,7 @@ export default function ChatInterface() {
                                             className={cn(
                                                 "p-3 rounded-full transition-all shadow-lg",
                                                 input.trim()
-                                                    ? "bg-white text-[#2F3E33] hover:scale-105"
+                                                    ? "bg-[#1A1A1A] text-[#D4AF37] hover:scale-105"
                                                     : "bg-white/10 text-white/30"
                                             )}
                                         >
@@ -288,8 +292,8 @@ export default function ChatInterface() {
                             </div>
                         )}
                         {/* Input Container: Dark Green/Grey Background */}
-                        {/* Input Container: Grey Background */}
-                        <div className="bg-[#404040] rounded-3xl p-2 pl-6 flex items-end gap-4 shadow-2xl shadow-black/20 border border-white/5 ring-1 ring-white/10 focus-within:ring-white/30 transition-all duration-300">
+                        {/* Input Container: Gold Gradient Bar */}
+                        <div className="bg-gradient-to-r from-[#e3c788] via-[#d4af37] to-[#aa8c2c] rounded-3xl p-2 pl-6 flex items-end gap-4 shadow-2xl shadow-[#D4AF37]/20 border border-[#F3E5AB]/40 ring-1 ring-[#D4AF37]/20 focus-within:ring-[#F3E5AB]/50 transition-all duration-300">
 
                             <input
                                 type="file"
@@ -301,7 +305,7 @@ export default function ChatInterface() {
                             />
 
                             <textarea
-                                className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-40 min-h-[48px] py-3 text-base text-white placeholder:text-white/50 font-medium focus:outline-none"
+                                className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-40 min-h-[48px] py-3 text-base text-[#1A1A1A] placeholder-[#1A1A1A]/60 font-medium focus:outline-none"
                                 placeholder="Ask anything"
                                 rows={1}
                                 value={input}
@@ -330,7 +334,7 @@ export default function ChatInterface() {
                                         className={cn(
                                             "p-3 rounded-full transition-all shadow-lg",
                                             input.trim()
-                                                ? "bg-white text-[#2F3E33] hover:scale-105"
+                                                ? "bg-[#1A1A1A] text-[#D4AF37] hover:scale-105"
                                                 : "bg-white/10 text-white/30"
                                         )}
                                     >

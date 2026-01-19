@@ -54,8 +54,8 @@ export default function CustomCursor() {
             {/* Main Cursor Blob */}
             <motion.div
                 className={cn(
-                    "fixed top-0 left-0 pointer-events-none z-[100] mix-blend-multiply dark:mix-blend-screen",
-                    cursorState === 'text' ? "bg-white rounded-sm" : "rounded-full bg-inky dark:bg-cream"
+                    "fixed top-0 left-0 pointer-events-none z-[100]",
+                    cursorState === 'text' ? "bg-white rounded-sm" : "rounded-full bg-[#D4AF37]"
                 )}
                 animate={{
                     x: mousePosition.x - (cursorState === 'text' ? 1 : 12),
@@ -81,7 +81,7 @@ export default function CustomCursor() {
                         animate={{ opacity: 0, scale: 2 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.6 }}
-                        className="fixed w-10 h-10 rounded-full bg-mauve z-[99] pointer-events-none"
+                        className="fixed w-10 h-10 rounded-full bg-[#D4AF37] z-[99] pointer-events-none"
                     />
                 ))}
             </AnimatePresence>

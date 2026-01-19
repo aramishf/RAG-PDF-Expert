@@ -25,7 +25,9 @@ export async function uploadFiles(files: File[]) {
     });
 
     if (!res.ok) throw new Error('Upload failed');
-    return res.json();
+    const data = await res.json();
+    if (data.status === 'error') throw new Error(data.message || 'Upload failed');
+    return data;
 }
 
 export async function sendChat(question: string): Promise<{ answer: string; citations: Citation[] }> {

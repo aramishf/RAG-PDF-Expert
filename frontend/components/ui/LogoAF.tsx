@@ -9,10 +9,10 @@ export default function LogoAF({
 }: AfLogoProps) {
     return (
         <img
-            src="/af-logo-transparent.png?v=5"
+            src="/logo_af.png"
             alt="AF Logo"
             className={`${className} object-contain`}
-            style={{ aspectRatio: '16/9' }}
+            style={{ aspectRatio: 'auto' }}
         />
     );
 }

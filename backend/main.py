@@ -51,58 +51,90 @@ class ChatResponse(BaseModel):
     answer: str
     citations: List[dict]
 
+INDEX_FOLDER = "faiss_index"
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    On startup, load the existing FAISS index if it exists.
+    """
+    global state
+    if os.path.exists(INDEX_FOLDER):
+        print("Loading existing vector store from disk...")
+        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        try:
+            state["vector_db"] = FAISS.load_local(INDEX_FOLDER, embeddings, allow_dangerous_deserialization=True)
+            print("Vector store loaded successfully.")
+        except Exception as e:
+            print(f"Failed to load vector store: {e}")
+    else:
+        print("No existing vector store found. Starting fresh.")
+
 @app.post("/upload")
 async def upload_files(files: List[UploadFile] = File(...)):
     """
-    Accepts PDF uploads, saves them, and rebuilds the vector index.
+    Accepts PDF uploads, saves them, and incrementally adds them to the vector index.
     """
     global state
-    saved_files = []
+    new_files_paths = []
 
     # 1. Save uploaded files to disk
     for file in files:
         file_path = os.path.join(DATA_FOLDER, file.filename)
+        # Check if file already exists to avoid re-processing perfectly identical uploads if desired,
+        # but technically we should allow overwrites. 
+        # For simplicity, we just overwrite and add to index (duplicates in index possible 
+        # but user can manage files). Ideally we'd check hash.
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        saved_files.append(file_path)
+        new_files_paths.append(file_path)
 
-    # 2. Process ALL files in data folder to ensure comprehensive index
-    return await process_index()
+    # 2. Process ONLY the new files
+    if not new_files_paths:
+        return {"status": "success", "message": "No new files uploaded."}
 
-async def process_index():
-    all_docs = []
-    pdf_files = glob.glob(os.path.join(DATA_FOLDER, "*.pdf"))
+    return await process_new_files(new_files_paths)
 
-    if not pdf_files:
-        return {"status": "error", "message": "No files found to process."}
+async def process_new_files(file_paths: List[str]):
+    global state
+    new_docs = []
 
-    print(f"Processing {len(pdf_files)} files...")
+    print(f"Processing {len(file_paths)} new files...")
 
-    for pdf_file in pdf_files:
+    for pdf_file in file_paths:
         try:
             loader = PyPDFLoader(pdf_file)
             docs = loader.load()
             for doc in docs:
                 doc.metadata["source"] = os.path.basename(pdf_file)
-            all_docs.extend(docs)
+            new_docs.extend(docs)
         except Exception as e:
             print(f"Error loading {pdf_file}: {e}")
 
-    if not all_docs:
-         return {"status": "error", "message": "Could not extract text from files."}
+    if not new_docs:
+         return {"status": "error", "message": "Could not extract text from uploaded files."}
 
     # Split
     splitter = RecursiveCharacterTextSplitter(chunk_size=900, chunk_overlap=150)
-    chunks = splitter.split_documents(all_docs)
+    chunks = splitter.split_documents(new_docs)
 
-    # Embed
+    # Embed & Index
     embeddings = OllamaEmbeddings(model="nomic-embed-text")
-    vector_db = FAISS.from_documents(chunks, embeddings)
     
-    # Update Global State
-    state["vector_db"] = vector_db
+    if state["vector_db"] is None:
+        # Create new index
+        print("Creating new vector store...")
+        vector_db = FAISS.from_documents(chunks, embeddings)
+        state["vector_db"] = vector_db
+    else:
+        # Add to existing index
+        print("Adding to existing vector store...")
+        state["vector_db"].add_documents(chunks)
+
+    # Save to disk
+    state["vector_db"].save_local(INDEX_FOLDER)
     
-    return {"status": "success", "message": f"Indexed {len(pdf_files)} files with {len(chunks)} chunks."}
+    return {"status": "success", "message": f"Added {len(file_paths)} files ({len(chunks)} chunks) to the index."}
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
