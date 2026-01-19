@@ -1,0 +1,42 @@
+# ============================================
+# .dockerignore - What NOT to copy into Docker
+# ============================================
+# This is like .gitignore but for Docker
+# It tells Docker which files to skip when copying
+# Why? Smaller images, faster builds, no secrets leaked
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment (we install fresh in Docker)
+venv/
+env/
+ENV/
+
+# Data files (these should use Docker volumes instead)
+data_uploaded/
+faiss_index/
+*.pdf
+
+# Development files
+*.log
+.env
+.env.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Debug scripts (not needed in production)
+debug_*.py
+test_*.py

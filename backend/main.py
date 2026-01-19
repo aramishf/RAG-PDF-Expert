@@ -14,6 +14,9 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 
+# Docker support: Use environment variable for Ollama URL
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import our auth and database modules
@@ -62,7 +65,7 @@ async def startup_event():
     global state
     if os.path.exists(INDEX_FOLDER):
         print("Loading existing vector store from disk...")
-        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=OLLAMA_BASE_URL)
         try:
             state["vector_db"] = FAISS.load_local(INDEX_FOLDER, embeddings, allow_dangerous_deserialization=True)
             print("Vector store loaded successfully.")
@@ -138,7 +141,7 @@ def process_new_files(file_paths: List[str]):
     # Embed & Index - Process in batches to handle large PDFs
     try:
         print("Creating embeddings...")
-        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=OLLAMA_BASE_URL)
         
         # Process in batches of 100 chunks to avoid timeout/memory issues
         batch_size = 100
@@ -188,7 +191,7 @@ def chat(request: ChatRequest):
             raise HTTPException(status_code=400, detail="No documents indexed. Please upload files first.")
         
         vector_db = state["vector_db"]
-        llm = ChatOllama(model="mistral")
+        llm = ChatOllama(model="mistral", base_url=OLLAMA_BASE_URL)
 
         # 1. Retrieve - Increased to 40 chunks for comprehensive evidence gathering
         print("Retrieving docs...")
