@@ -50,7 +50,7 @@ export default function ChatInterface() {
                 const withoutThinking = prev.slice(0, -1);
                 return [...withoutThinking, {
                     role: 'assistant',
-                    content: "I encountered an error processing your question. Please try again or upload documents if you haven't already."
+                    content: `⚠️ **Error**: ${error instanceof Error ? error.message : "Unknown error occurred"}`
                 }];
             });
         } finally {
@@ -92,13 +92,18 @@ export default function ChatInterface() {
                 // Add to uploaded files set
                 setUploadedFiles(prev => new Set([...prev, ...newFiles.map(f => f.name)]));
 
-                const fileNames = newFiles.map(f => f.name).join(', ');
                 setMessages(prev => [...prev, {
                     role: 'assistant',
                     content: `Documents processed and ready for analysis:\n\n${newFiles.map(f => `• ${f.name}`).join('\n')}`
                 }]);
-            } catch {
-                alert('Upload failed');
+            } catch (error) {
+                console.error('Upload error:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+
+                setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: `⚠️ **Upload Failed**: ${errorMessage}\n\nPlease ensure the PDF contains selectable text and is not corrupted or password protected.`
+                }]);
             } finally {
                 setIsUploading(false);
                 setUploadingFiles([]);
