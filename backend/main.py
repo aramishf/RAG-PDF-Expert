@@ -11,7 +11,7 @@ import glob
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
+from langchain_chroma import Chroma
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -97,7 +97,11 @@ async def process_index():
 
     # Embed
     embeddings = OllamaEmbeddings(model="nomic-embed-text")
-    vector_db = FAISS.from_documents(chunks, embeddings)
+    vector_db = Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings,
+        persist_directory="./chroma_db"
+    )
     
     # Update Global State
     state["vector_db"] = vector_db

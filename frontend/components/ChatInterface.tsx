@@ -107,7 +107,8 @@ export default function ChatInterface() {
     };
 
     return (
-        <div className="h-full w-full flex flex-col relative overflow-hidden bg-transparent font-sans">
+        <div className="h-full w-full flex flex-col relative overflow-hidden bg-[#0c0b08] bg-[radial-gradient(circle_at_center,rgba(223,177,91,0.06)_0%,rgba(0,0,0,0)_70%)] font-sans">
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-[#5A7863] z-50" />
 
             {/* Header */}
             <div className="absolute top-0 left-0 w-full h-24 flex items-center justify-between px-8 z-10">
@@ -123,7 +124,7 @@ export default function ChatInterface() {
                             User requested Canvas = Forest Green. 
                             Let's use White/Cream for text to be visible on Forest Green.
                         */}
-                        <h1 className="text-xl text-white/90 font-bold tracking-wide uppercase leading-none font-sans">AI Research Assistant</h1>
+                        <h1 className="text-xl text-[#DFB15B] font-bold tracking-wide uppercase leading-none font-sans">AI Research Assistant</h1>
                     </div>
                 </div>
             </div>
@@ -138,13 +139,21 @@ export default function ChatInterface() {
                         className="h-full flex flex-col items-center justify-center text-center space-y-8 -mt-20"
                     >
                         <div className="relative">
-                            <div className="absolute inset-0 bg-white/5 blur-3xl opacity-20 rounded-full" />
-                            <LogoAF className="w-32 h-32 relative z-10 drop-shadow-2xl" />
+                            <div className="absolute inset-0 bg-[#DFB15B]/10 blur-3xl opacity-30 rounded-full" />
+                            <img 
+                                src="/robot-avatar.png" 
+                                alt="Robot Avatar" 
+                                className="w-32 h-32 relative z-10 rounded-3xl object-cover border border-[#DFB15B]/20 shadow-2xl" 
+                            />
                         </div>
 
-                        <h2 className="text-xl md:text-2xl font-light text-white/90 tracking-wide max-w-xl">
-                            Upload your documents to instantly extract insights
+                        <h2 className="text-4xl md:text-5xl font-bold tracking-tight bg-gradient-to-b from-[#FFF2CC] via-[#DFB15B] to-[#C59B4B] bg-clip-text text-transparent max-w-2xl font-serif">
+                            What would you like to know?
                         </h2>
+
+                        <p className="text-sm md:text-base font-light text-white/60 max-w-xl leading-relaxed">
+                            Upload your documents and ask complex questions. I'll analyze them for you.
+                        </p>
 
                         {/* Upload Progress - Compact version for empty state */}
                         {isUploading && (
@@ -160,7 +169,7 @@ export default function ChatInterface() {
                         <div className="w-full max-w-2xl mt-8">
                             {/* Input Container: Dark Green/Grey Background */}
                             {/* Input Container: Grey Background */}
-                            <div className="bg-[#404040] rounded-3xl p-2 pl-6 flex items-end gap-4 shadow-2xl shadow-black/20 border border-white/5 ring-1 ring-white/10 focus-within:ring-white/30 transition-all duration-300">
+                            <div className="bg-gradient-to-r from-[#DFB15B] via-[#C59B4B] to-[#916B27] rounded-3xl p-2 pl-6 flex items-end gap-4 shadow-2xl shadow-black/40 border border-white/10 ring-1 ring-[#DFB15B]/20 focus-within:ring-[#DFB15B]/40 transition-all duration-300">
 
                                 <input
                                     type="file"
@@ -172,7 +181,7 @@ export default function ChatInterface() {
                                 />
 
                                 <textarea
-                                    className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-40 min-h-[48px] py-3 text-base text-white placeholder:text-white/50 font-medium focus:outline-none"
+                                    className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-40 min-h-[48px] py-3 text-base text-[#1C1C1C] placeholder:text-[#1C1C1C]/50 font-semibold focus:outline-none"
                                     placeholder="Ask anything"
                                     rows={1}
                                     value={input}
@@ -185,7 +194,7 @@ export default function ChatInterface() {
                                     <div className="relative group/btn flex flex-col items-center">
                                         <MagneticButton
                                             onClick={handleUploadClick}
-                                            className="p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                            className="p-3 text-[#1C1C1C]/70 hover:text-[#1C1C1C] hover:bg-black/10 rounded-full transition-colors"
                                         >
                                             <Plus className="w-6 h-6" />
                                         </MagneticButton>
@@ -201,8 +210,8 @@ export default function ChatInterface() {
                                             className={cn(
                                                 "p-3 rounded-full transition-all shadow-lg",
                                                 input.trim()
-                                                    ? "bg-white text-[#2F3E33] hover:scale-105"
-                                                    : "bg-white/10 text-white/30"
+                                                    ? "bg-[#1C1C1C] text-white hover:scale-105"
+                                                    : "bg-black/15 text-[#1C1C1C]/40"
                                             )}
                                         >
                                             <Send className="w-5 h-5 ml-0.5" />
@@ -213,6 +222,12 @@ export default function ChatInterface() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Page Indicator Dots */}
+                        <div className="flex justify-center items-center gap-2 mt-8">
+                            <span className="w-6 h-2 bg-white rounded-full transition-all duration-300" />
+                            <span className="w-2 h-2 bg-white/30 rounded-full transition-all duration-300" />
                         </div>
 
                     </motion.div>
@@ -289,7 +304,7 @@ export default function ChatInterface() {
                         )}
                         {/* Input Container: Dark Green/Grey Background */}
                         {/* Input Container: Grey Background */}
-                        <div className="bg-[#404040] rounded-3xl p-2 pl-6 flex items-end gap-4 shadow-2xl shadow-black/20 border border-white/5 ring-1 ring-white/10 focus-within:ring-white/30 transition-all duration-300">
+                        <div className="bg-gradient-to-r from-[#DFB15B] via-[#C59B4B] to-[#916B27] rounded-3xl p-2 pl-6 flex items-end gap-4 shadow-2xl shadow-black/40 border border-white/10 ring-1 ring-[#DFB15B]/20 focus-within:ring-[#DFB15B]/40 transition-all duration-300">
 
                             <input
                                 type="file"
@@ -301,7 +316,7 @@ export default function ChatInterface() {
                             />
 
                             <textarea
-                                className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-40 min-h-[48px] py-3 text-base text-white placeholder:text-white/50 font-medium focus:outline-none"
+                                className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-40 min-h-[48px] py-3 text-base text-[#1C1C1C] placeholder:text-[#1C1C1C]/50 font-semibold focus:outline-none"
                                 placeholder="Ask anything"
                                 rows={1}
                                 value={input}
@@ -314,7 +329,7 @@ export default function ChatInterface() {
                                 <div className="relative group/btn flex flex-col items-center">
                                     <MagneticButton
                                         onClick={handleUploadClick}
-                                        className="p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                        className="p-3 text-[#1C1C1C]/70 hover:text-[#1C1C1C] hover:bg-black/10 rounded-full transition-colors"
                                     >
                                         <Plus className="w-6 h-6" />
                                     </MagneticButton>
@@ -330,8 +345,8 @@ export default function ChatInterface() {
                                         className={cn(
                                             "p-3 rounded-full transition-all shadow-lg",
                                             input.trim()
-                                                ? "bg-white text-[#2F3E33] hover:scale-105"
-                                                : "bg-white/10 text-white/30"
+                                                ? "bg-[#1C1C1C] text-white hover:scale-105"
+                                                : "bg-black/15 text-[#1C1C1C]/40"
                                         )}
                                     >
                                         <Send className="w-5 h-5 ml-0.5" />
