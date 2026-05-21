@@ -6,7 +6,8 @@ langchain-ollama
 langchain-community
 langchain-text-splitters
 pypdf
-faiss-cpu
+chromadb
+langchain-chroma
 sqlalchemy
 psycopg2-binary
 passlib[bcrypt]
