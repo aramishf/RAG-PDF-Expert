@@ -1,0 +1,110 @@
+# ============================================
+# LEARNING: What is docker-compose?
+# ============================================
+# docker-compose is like a conductor for an orchestra
+# It manages multiple containers (services) as one application
+#
+# Instead of running 3 separate docker commands, you run ONE:
+# docker-compose up
+#
+# This file is written in YAML (Yet Another Markup Language)
+# YAML uses indentation (like Python) to show structure
+
+# ============================================
+# Version (optional, for compatibility)
+# ============================================
+version: '3.8'
+
+# ============================================
+# Services: The containers we want to run
+# ============================================
+services:
+
+  # ==========================================
+  # Service 1: Ollama (AI Model Server)
+  # ==========================================
+  ollama:
+    # Use official Ollama image from Docker Hub
+    image: ollama/ollama:latest
+
+    # Container name (easier to reference than auto-generated names)
+    container_name: rag-ollama
+
+    # Volumes: Persistent storage
+    # Format: host_path:container_path
+    # This saves downloaded models so you don't re-download every time!
+    volumes:
+      - ollama_models:/root/.ollama
+      - ./ollama-init.sh:/ollama-init.sh
+
+    # Ports: Map container port to host port
+    # Format: host_port:container_port
+    # This makes Ollama accessible at localhost:11434
+    ports:
+      - "11434:11434"
+
+    # Run our initialization script to download Mistral
+    entrypoint: [ "/bin/bash", "/ollama-init.sh" ]
+
+    # Restart policy: Always restart if it crashes
+    restart: unless-stopped
+
+  # ==========================================
+  # Service 2: Backend (FastAPI)
+  # ==========================================
+  backend:
+    # Build from our Dockerfile instead of using a pre-made image
+    build:
+      context: ./backend # Where to find the Dockerfile
+      dockerfile: Dockerfile
+
+    container_name: rag-backend
+
+    # Environment variables
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+
+    # Volumes for persistent data
+    volumes:
+      - uploaded_data:/app/data_uploaded
+      - faiss_index:/app/faiss_index
+
+    ports:
+      - "8000:8000"
+
+    # depends_on: Wait for Ollama to start
+    depends_on:
+      - ollama
+
+    restart: unless-stopped
+
+  # ==========================================
+  # Service 3: Frontend (Next.js)
+  # ==========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+    container_name: rag-frontend
+
+    environment:
+      # Tell frontend where to find backend
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+
+    ports:
+      - "3000:3000"
+
+    # Frontend depends on backend
+    depends_on:
+      - backend
+
+    restart: unless-stopped
+
+# ============================================
+# Volumes: Named storage that persists
+# ============================================
+volumes:
+  ollama_models: # Stores Mistral model (~4GB)
+  uploaded_data: # Stores user-uploaded PDFs
+  faiss_index: # Stores vector database

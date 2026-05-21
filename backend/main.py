@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 import shutil
 import os
+import sys
 import tempfile
 import glob
 
@@ -12,6 +13,9 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
+
+# Docker support: Use environment variable for Ollama URL
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -51,134 +55,274 @@ class ChatResponse(BaseModel):
     answer: str
     citations: List[dict]
 
-@app.post("/upload")
-async def upload_files(files: List[UploadFile] = File(...)):
+INDEX_FOLDER = "chroma_db"
+
+@app.on_event("startup")
+async def startup_event():
     """
-    Accepts PDF uploads, saves them, and rebuilds the vector index.
+    On startup, load the existing Chroma index if it exists.
     """
     global state
-    saved_files = []
+    embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=OLLAMA_BASE_URL)
+    try:
+        state["vector_db"] = Chroma(
+            persist_directory=INDEX_FOLDER,
+            embedding_function=embeddings
+        )
+        print("Chroma vector store loaded successfully.")
+    except Exception as e:
+        print(f"Failed to load Chroma vector store: {e}")
+
+from fastapi import BackgroundTasks
+
+@app.post("/upload")
+async def upload_files(background_tasks: BackgroundTasks, files: List[UploadFile] = File(...)):
+    """
+    Accepts PDF uploads, saves them, and incrementally adds them to the vector index in the background.
+    """
+    global state
+    new_files_paths = []
 
     # 1. Save uploaded files to disk
     for file in files:
         file_path = os.path.join(DATA_FOLDER, file.filename)
+        # Check if file already exists to avoid re-processing perfectly identical uploads if desired,
+        # but technically we should allow overwrites. 
+        # For simplicity, we just overwrite and add to index (duplicates in index possible 
+        # but user can manage files). Ideally we'd check hash.
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        saved_files.append(file_path)
+        new_files_paths.append(file_path)
 
-    # 2. Process ALL files in data folder to ensure comprehensive index
-    return await process_index()
+    # 2. Process ONLY the new files
+    if not new_files_paths:
+        return {"status": "success", "message": "No new files uploaded."}
 
-async def process_index():
-    all_docs = []
-    pdf_files = glob.glob(os.path.join(DATA_FOLDER, "*.pdf"))
+    # Run processing in background to avoid timeout
+    background_tasks.add_task(process_new_files, new_files_paths)
 
-    if not pdf_files:
-        return {"status": "error", "message": "No files found to process."}
+    return {"status": "success", "message": f"Upload accepted. Processing {len(new_files_paths)} files in background."}
 
-    print(f"Processing {len(pdf_files)} files...")
+def process_new_files(file_paths: List[str]):
+    import sys
+    global state
+    new_docs = []
 
-    for pdf_file in pdf_files:
+    print(f"Processing {len(file_paths)} new files...")
+    sys.stdout.flush()
+
+    for pdf_file in file_paths:
         try:
+            print(f"Loading {pdf_file}...")
             loader = PyPDFLoader(pdf_file)
             docs = loader.load()
             for doc in docs:
                 doc.metadata["source"] = os.path.basename(pdf_file)
-            all_docs.extend(docs)
+            new_docs.extend(docs)
+            print(f"Successfully loaded {len(docs)} pages from {pdf_file}")
+            sys.stdout.flush()
         except Exception as e:
             print(f"Error loading {pdf_file}: {e}")
+            import traceback
+            traceback.print_exc()
 
-    if not all_docs:
-         return {"status": "error", "message": "Could not extract text from files."}
+    if not new_docs:
+         print("ERROR: Could not extract text from uploaded files.")
+         return {"status": "error", "message": "Could not extract text from uploaded files."}
 
     # Split
+    print(f"Splitting {len(new_docs)} documents into chunks...")
     splitter = RecursiveCharacterTextSplitter(chunk_size=900, chunk_overlap=150)
-    chunks = splitter.split_documents(all_docs)
+    chunks = splitter.split_documents(new_docs)
+    print(f"Created {len(chunks)} chunks")
+    sys.stdout.flush()
 
-    # Embed
-    embeddings = OllamaEmbeddings(model="nomic-embed-text")
-    vector_db = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        persist_directory="./chroma_db"
-    )
+    # Embed & Index - Process in batches to handle large PDFs
+    try:
+        print("Creating embeddings...")
+        embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url=OLLAMA_BASE_URL)
+        
+        # Process in batches of 100 chunks to avoid timeout/memory issues
+        batch_size = 100
+        total_batches = (len(chunks) + batch_size - 1) // batch_size
+        
+        if state["vector_db"] is None:
+            # Create new index with first batch
+            print(f"Creating new vector store (processing {len(chunks)} chunks in {total_batches} batches)...")
+            first_batch = chunks[:batch_size]
+            vector_db = Chroma.from_documents(
+                documents=first_batch,
+                embedding=embeddings,
+                persist_directory=INDEX_FOLDER
+            )
+            state["vector_db"] = vector_db
+            print(f"Batch 1/{total_batches} complete")
+            
+            # Add remaining batches
+            for i in range(batch_size, len(chunks), batch_size):
+                batch_num = (i // batch_size) + 1
+                batch = chunks[i:i + batch_size]
+                state["vector_db"].add_documents(batch)
+                print(f"Batch {batch_num}/{total_batches} complete")
+        else:
+            # Add to existing index in batches
+            print(f"Adding to existing vector store ({len(chunks)} chunks in {total_batches} batches)...")
+            for i in range(0, len(chunks), batch_size):
+                batch_num = (i // batch_size) + 1
+                batch = chunks[i:i + batch_size]
+                state["vector_db"].add_documents(batch)
+                print(f"Batch {batch_num}/{total_batches} complete")
+
+        print(f"SUCCESS: Added {len(file_paths)} files ({len(chunks)} chunks) to the index.")
+        sys.stdout.flush()
+    except Exception as e:
+        print(f"ERROR during indexing: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"status": "error", "message": f"Indexing failed: {str(e)}"}
     
-    # Update Global State
-    state["vector_db"] = vector_db
-    
-    return {"status": "success", "message": f"Indexed {len(pdf_files)} files with {len(chunks)} chunks."}
+    return {"status": "success", "message": f"Added {len(file_paths)} files ({len(chunks)} chunks) to the index."}
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    if state["vector_db"] is None:
-        raise HTTPException(status_code=400, detail="No documents indexed. Please upload files first.")
-    
-    vector_db = state["vector_db"]
-    llm = ChatOllama(model="llama3")
+    print("--- ENTERING CHAT ENDPOINT ---")
+    try:
+        if state["vector_db"] is None:
+            raise HTTPException(status_code=400, detail="No documents indexed. Please upload files first.")
+        
+        vector_db = state["vector_db"]
+        llm = ChatOllama(model="mistral", base_url=OLLAMA_BASE_URL)
 
-    # 1. Retrieve - Increased to 20 chunks for more comprehensive answers
-    docs_and_scores = vector_db.similarity_search_with_score(request.question, k=20)
-    docs_and_scores.sort(key=lambda x: x[1])
-    source_docs = [doc for doc, score in docs_and_scores]
+        # 1. Retrieve - Improved k=25
+        import time
+        t0 = time.time()
+        print("Retrieving docs...")
+        docs_and_scores = vector_db.similarity_search_with_score(request.question, k=25)
+        docs_and_scores.sort(key=lambda x: x[1])
+        source_docs = [doc for doc, score in docs_and_scores]
+        print(f"Retrieval took: {time.time() - t0:.2f}s")
+        
+        # 2. Context - Format as numbered source passages
+        context_parts = []
+        for idx, d in enumerate(source_docs, 1):
+            src = d.metadata.get("source", "Unknown")
+            pg = d.metadata.get("page", 0) + 1
+            context_parts.append(f"[{src}, p.{pg}]:\n{d.page_content}")
+        context = "\n\n---\n\n".join(context_parts)
+        
+        # Debug: Log what we're sending to the AI
+        print(f"Retrieved {len(source_docs)} passages")
+        print(f"Context length: {len(context)} characters")
+        print(f"First passage preview: {context[:500]}...")
+        # sys.stdout.flush() - Removed to prevent potential NameError
 
-    # 2. Context
-    context_parts = []
-    for d in source_docs:
-        src = d.metadata.get("source", "Unknown")
-        pg = d.metadata.get("page", 0) + 1
-        context_parts.append(f"[{src}, p.{pg}] {d.page_content}")
-    context = "\n\n".join(context_parts)
+        # 3. Prompt - 4-Step Deep Analysis
+        prompt = f"""You are an expert research assistant.
 
-    # 3. Prompt
-    prompt = f"""
-You are an expert research assistant with deep knowledge helping users analyze and understand content from a library of books.
+QUERY: {request.question}
 
-Your task is to provide comprehensive, well-researched answers by:
-1. Using your knowledge and analytical thinking to understand the question
-2. Supporting EVERY claim with direct evidence and quotes from the provided books
-3. Clearly distinguishing between what the books say and your analytical framework
-
-RESPONSE STRUCTURE:
-- Start with a clear, direct answer using your knowledge and reasoning
-- IMMEDIATELY support each point with exact quotes from the books, citing Book Name and Page Number
-- Provide detailed context and explanation around the evidence
-- If making connections between ideas, base them on explicit textual evidence
-- Include multiple relevant quotes from different sources when available
-
-CRITICAL RULES:
-1. ALWAYS cite exact quotes with [Book Name, p.XX] for every factual claim
-2. Use your knowledge to provide thoughtful analysis, but ground it in textual evidence
-3. Be comprehensive and detailed - this is research, not a summary
-4. When quoting, use quotation marks and exact text from the source
-5. If the books don't directly address something, say so clearly, then provide related information if available
-6. Distinguish between what is explicitly stated vs. your analytical interpretation
-7. Provide thorough explanations to help the user understand the material deeply
-
-Question: {request.question}
-
-Context from books:
+SOURCE MATERIAL:
 {context}
-""".strip()
 
-    # 4. Infer
-    response = llm.invoke(prompt)
-    answer_text = response.content
+INSTRUCTIONS:
+Analyze the source material and provide a structured response following these 4 STEPS exactly.
 
-    # 5. Format Citations
-    citations = []
-    for d, score in docs_and_scores:
-        citations.append({
-            "source": d.metadata.get("source", "Unknown"),
-            "page": d.metadata.get("page", 0) + 1,
-            "score": float(score),
-            "text": d.page_content
-        })
+STEP 1 - EVIDENCE EXTRACTION
+- List textual evidence directly relevant to the query.
+- Format: "Verbatim quote..." [Source, p.XX]
+- Classify claims if possible (Historical, Theological, etc.)
 
-    return ChatResponse(answer=answer_text, citations=citations)
+STEP 2 - ANALYSIS
+- Analyze the extracted evidence.
+- Explain the key arguments or narratives presented in the text.
+- Connect the evidence to logical conclusions.
+- "The text presents a perspective that..."
+
+STEP 3 - GAP IDENTIFICATION
+- Identify what is missing from the provided text to fully answer the query.
+- Identify any assumptions the text makes (e.g. reader knowledge).
+- "The text does not explain..."
+
+STEP 4 - SYNTHESIS
+- Synthesize a comprehensive final answer based on the analysis.
+- Connect the claims to the final conclusion.
+- Ensure the tone is objective and analytical.
+
+CRITICAL CITATION RULES:
+- ALWAYS use [Source, p.XX] format immediately after quotes.
+- NO "References" list at the end.
+- ALL claims must be grounded in the text.
+
+    """.strip()
+
+        # 4. Infer
+        print("Invoking LLM (Sync)...")
+        t1 = time.time()
+        from fastapi.concurrency import run_in_threadpool
+        try:
+            # Use run_in_threadpool for sync functions called from async
+            response = await run_in_threadpool(llm.invoke, prompt)
+            print(f"LLM Generation took: {time.time() - t1:.2f}s")
+            answer_text = response.content
+        except Exception as e:
+            print(f"Error invoking LLM: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+        # 5. Format Citations - Only include sources actually cited in the response
+        citations = []
+        for d, score in docs_and_scores:
+            source_name = d.metadata.get("source", "Unknown")
+            page_num = d.metadata.get("page", 0) + 1
+            
+            # Check if this source was actually referenced in the answer
+            # Look for patterns like "[source, p.XX]" or "source, p.XX"
+            if source_name.replace('.pdf', '') in answer_text or f"p.{page_num}" in answer_text:
+                citations.append({
+                    "source": source_name,
+                    "page": page_num,
+                    "score": float(score),
+                    "text": d.page_content
+                })
+
+        return ChatResponse(answer=answer_text, citations=citations)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"Chat Error: {str(e)}\n"
+        import traceback
+        traceback_str = traceback.format_exc()
+        print(error_msg)
+        print(traceback_str)
+        
+        # Write to file to ensure we catch it
+        with open("backend_error.log", "w") as f:
+            f.write(error_msg)
+            f.write(traceback_str)
+            
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/list-documents")
+def list_documents():
+    """
+    Returns a list of all uploaded PDF files in the database.
+    """
+    import os
+    files = []
+    if os.path.exists(DATA_FOLDER):
+        for filename in os.listdir(DATA_FOLDER):
+            if filename.endswith('.pdf'):
+                filepath = os.path.join(DATA_FOLDER, filename)
+                file_size = os.path.getsize(filepath)
+                files.append({
+                    "filename": filename,
+                    "size_mb": round(file_size / (1024 * 1024), 2)
+                })
+    return {"documents": files, "total": len(files)}
 
 # ============================================================================
 # AUTHENTICATION ENDPOINTS
