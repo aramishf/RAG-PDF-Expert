@@ -190,31 +190,6 @@ export default function ChatInterface() {
                     </div>
                 )}
 
-                <AnimatePresence initial={false}>
-                    {messages.map((msg, idx) => (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="text-center space-y-6 mb-12"
-                        >
-                            <div className="relative inline-block">
-                                <div className="absolute inset-0 bg-transparent" />
-                                <img
-                                    src="/ai_avatar.png"
-                                    alt="AI Assistant"
-                                    className="w-40 h-40 relative z-10 drop-shadow-2xl object-cover rounded-2xl mx-auto"
-                                />
-                            </div>
-                            <h1 className="text-4xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#D4AF37]">
-                                What would you like to know?
-                            </h1>
-                            <p className="text-white/40 text-lg max-w-xl mx-auto">
-                                Upload your documents and ask complex questions. I'll analyze them for you.
-                            </p>
-                        </motion.div>
-                    </div>
-                )}
-
                 {/* Messages List */}
                 {hasStartedChatting && (
                     <div className="flex-1 overflow-y-auto px-4 space-y-8 scroll-smooth pb-60" ref={scrollRef}>
